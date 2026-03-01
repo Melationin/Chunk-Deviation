@@ -1,0 +1,42 @@
+{
+	"schemaVersion": 1,
+	"id": "chunk-modify",
+	"version": "${version}",
+	"name": "Chunk Modify",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/chunk-modify/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.zhddsj.chunkcheck.ChunkModify"
+		],
+		"client": [
+			"com.zhddsj.chunkcheck.ChunkModifyClient"
+		],
+		"fabric-datagen": [
+			"com.zhddsj.chunkcheck.ChunkModifyDataGenerator"
+		]
+	},
+	"mixins": [
+		"chunk-modify.mixins.json",
+		{
+			"config": "chunk-modify.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"accessWidener": "chunk-modify.accesswidener",
+	"depends": {
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.6",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

@@ -1,0 +1,10 @@
+Starting a Gradle Daemon, 1 stopped Daemon could not be reused, use --status for details
+
+> Configure project :
+Fabric Loom: 1.15.4
+"Lock for cache='C:\Gradle\repositorys\caches\fabric-loom', project=':'" is currently held by pid '13072'.
+Locking process does not exist, assuming abrupt termination and deleting lock file.
+Found existing cache lock file (ACQUIRED_PREVIOUS_OWNER_MISSING), rebuilding loom cache. This may have been caused by a failed or canceled build.
+:remapping sources
+终止批处理操作吗(Y/N)? 
+^C系统无法打开指定的设备或文件。
