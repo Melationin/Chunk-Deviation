@@ -5,6 +5,10 @@
   "mixins": [
     "BlockIDMixin",
     "MinecraftServerMixin",
+    "MirrorDimensionSyncMixin",
+    "ChunkRegionMixin",
+    "ChunkGeneratingMixin",
+    "ChunkGeneratorFeatureMixin",
     "cancelSave.ChunkPosKeyedStorageMixin",
     "cancelSave.EntityChunkDataAccessMixin",
     "cancelSave.ServerChunkLoadingManagerMixin",

@@ -13,3 +13,15 @@ mutable field net/minecraft/world/chunk/AbstractChunkHolder status Lnet/minecraf
 
 accessible method net/minecraft/registry/entry/RegistryEntry$Reference getTags ()Ljava/util/Set;
 
+# Mirror dimension sync: make noiseConfig and structurePlacementCalculator mutable
+accessible field net/minecraft/server/world/ServerChunkLoadingManager noiseConfig Lnet/minecraft/world/gen/noise/NoiseConfig;
+mutable field net/minecraft/server/world/ServerChunkLoadingManager noiseConfig Lnet/minecraft/world/gen/noise/NoiseConfig;
+accessible field net/minecraft/server/world/ServerChunkLoadingManager structurePlacementCalculator Lnet/minecraft/world/gen/chunk/placement/StructurePlacementCalculator;
+mutable field net/minecraft/server/world/ServerChunkLoadingManager structurePlacementCalculator Lnet/minecraft/world/gen/chunk/placement/StructurePlacementCalculator;
+
+# ChunkRegion seed and biomeAccess fields
+accessible field net/minecraft/world/ChunkRegion seed J
+mutable field net/minecraft/world/ChunkRegion seed J
+accessible field net/minecraft/world/ChunkRegion biomeAccess Lnet/minecraft/world/biome/source/BiomeAccess;
+mutable field net/minecraft/world/ChunkRegion biomeAccess Lnet/minecraft/world/biome/source/BiomeAccess;
+
