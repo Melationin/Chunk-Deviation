@@ -101,7 +101,11 @@ public final class ConfigCommand
                             res.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getValue))
                                     .forEach(
                                             entry -> {
-                                                context.getSource().sendFeedback(()->Text.of(entry.getKey().getFirst().getName().getString() + " -> " + entry.getKey().getSecond().getName().getString() + ": " + entry.getValue()),false);
+                                                context.getSource().sendFeedback(()->Text.of(entry.getKey().getFirst().getName().getString() +"("
+                                                        +entry.getKey().getFirst().getDefaultState().getRegistryEntry().getIdAsString()
+                                                        +")"
+
+                                                        + " -> " + entry.getKey().getSecond().getName().getString() + ": " + entry.getValue()),false);
                                             }
                                     )
 

@@ -1,5 +1,7 @@
 package com.zhddsj.chunkdeviation.comparison;
 
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockTypes;
 import net.minecraft.block.Blocks;
 import net.minecraft.registry.tag.BlockTags;
 
@@ -28,6 +30,48 @@ public class ChunkComparatorConfigs
             addTagMap(BlockTags.FLOWERS, Blocks.AIR);
             addTagMap(BlockTags.OVERWORLD_CARVER_REPLACEABLES, Blocks.STONE);
             addBlockMap(Blocks.CAVE_AIR, Blocks.AIR);
+            addBlockMap(Blocks.WATER, Blocks.AIR);
+            addTagMap(BlockTags.COAL_ORES, Blocks.STONE);
+            addBlockMap(Blocks.SCULK,Blocks.STONE);
+            addBlockMap(Blocks.SCULK_VEIN,Blocks.AIR);
+            addTagMap(BlockTags.CAVE_VINES,Blocks.AIR);
+            addBlockMap(Blocks.CLAY,Blocks.STONE);
+
+            addTagMap(BlockTags.CORAL_BLOCKS,Blocks.AIR);
+            addTagMap(BlockTags.CORALS,Blocks.AIR);
+
+            addBlockMap(Blocks.MOSS_BLOCK,Blocks.STONE);
+            addBlockMap(Blocks.MOSS_CARPET,Blocks.AIR);
+            addBlockMap(Blocks.PALE_MOSS_CARPET,Blocks.AIR);
+            addBlockMap(Blocks.KELP,Blocks.AIR);
+            addBlockMap(Blocks.KELP_PLANT,Blocks.AIR);
+            addBlockMap(Blocks.TALL_SEAGRASS,Blocks.AIR);
+            addBlockMap(Blocks.SEAGRASS,Blocks.AIR);
+            addBlockMap(Blocks.BAMBOO,Blocks.AIR);
+            addBlockMap(Blocks.DRIPSTONE_BLOCK,Blocks.STONE);
+            addBlockMap(Blocks.POINTED_DRIPSTONE,Blocks.AIR);
+            addBlockMap(Blocks.HORN_CORAL_WALL_FAN,Blocks.AIR);
+            addBlockMap(Blocks.BUBBLE_CORAL_WALL_FAN,Blocks.AIR);
+            addBlockMap(Blocks.BRAIN_CORAL_WALL_FAN,Blocks.AIR);
+            addBlockMap(Blocks.FIRE_CORAL_WALL_FAN,Blocks.AIR);
+            addBlockMap(Blocks.TUBE_CORAL_WALL_FAN,Blocks.AIR);
+
+            addBlockMap(Blocks.SEA_PICKLE,Blocks.AIR);
+            addBlockMap(Blocks.BIG_DRIPLEAF_STEM,Blocks.AIR);
+            addBlockMap(Blocks.BIG_DRIPLEAF,Blocks.AIR);
+            addBlockMap(Blocks.SMALL_DRIPLEAF,Blocks.AIR);
+
+
+            addBlockMap(Blocks.AZALEA,Blocks.AIR);
+            addBlockMap(Blocks.SCULK_SENSOR,Blocks.AIR);
+            addBlockMap(Blocks.BROWN_MUSHROOM,Blocks.AIR);
+            addBlockMap(Blocks.COBWEB,Blocks.AIR);
+            addBlockMap(Blocks.COCOA,Blocks.AIR);
+            addBlockMap(Blocks.MOSSY_COBBLESTONE,Blocks.AIR);
+            addTagMap(BlockTags.DIAMOND_ORES,Blocks.STONE);
+            addTagMap(BlockTags.LAPIS_ORES,Blocks.STONE);
+            addTagMap(BlockTags.REDSTONE_ORES,Blocks.STONE);
+            addTagMap(BlockTags.GOLD_ORES,Blocks.STONE);
         }
     }
 
