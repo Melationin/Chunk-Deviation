@@ -1,7 +1,0 @@
-accessWidener v2 named
-
-accessible field net/minecraft/server/world/ServerChunkLoadingManager structurePlacementCalculator Lnet/minecraft/world/gen/chunk/placement/StructurePlacementCalculator;
-mutable field net/minecraft/server/world/ServerChunkLoadingManager structurePlacementCalculator Lnet/minecraft/world/gen/chunk/placement/StructurePlacementCalculator;
-accessible field net/minecraft/server/world/ServerChunkLoadingManager generationContext Lnet/minecraft/world/chunk/ChunkGenerationContext;
-accessible field net/minecraft/world/storage/VersionedChunkStorage worker Lnet/minecraft/world/storage/StorageIoWorker;
-accessible method net/minecraft/world/storage/StorageIoWorker readChunkData (Lnet/minecraft/util/math/ChunkPos;)Ljava/util/concurrent/CompletableFuture;

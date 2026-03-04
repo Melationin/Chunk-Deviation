@@ -1,6 +1,6 @@
 {
 	"required": true,
-	"package": "com.zhddsj.chunkcheck.mixin.client",
+	"package": "com.zhddsj.chunkdeviation.mixin.client",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
 		"ExampleClientMixin"

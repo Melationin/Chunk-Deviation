@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "com.zhddsj.chunkdeviation.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BlockIDMixin",
+    "MinecraftServerMixin",
+    "cancelSave.ChunkPosKeyedStorageMixin",
+    "cancelSave.EntityChunkDataAccessMixin",
+    "cancelSave.ServerChunkLoadingManagerMixin",
+    "cancelSave.ServerChunkManagerMixin",
+    "cancelSave.ServerWorldMixin",
+    "cancelSave.VersionedChunkStorageMixin",
+    "cancelSave.WorldMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
