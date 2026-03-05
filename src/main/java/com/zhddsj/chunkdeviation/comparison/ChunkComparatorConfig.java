@@ -96,7 +96,6 @@ public class ChunkComparatorConfig
 
     public long diffCount(Block mirror, Block real)
     {
-        if(id2BlockModifiedArray[((IBlockID)real).ZCM$getID()]) return 16*16*16*32; // 这个值应该足够大了
         if(id2BlockIgnoredArray[((IBlockID)real).ZCM$getID()]) return 0; // 这个值应该足够大了
         if(id2BlockArray[((IBlockID)real).ZCM$getID()]!=null) real=id2BlockArray[((IBlockID)real).ZCM$getID()];
         if(id2BlockArray[((IBlockID)mirror).ZCM$getID()]!=null) mirror=id2BlockArray[((IBlockID)mirror).ZCM$getID()];

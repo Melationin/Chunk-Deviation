@@ -23,6 +23,7 @@ import net.minecraft.util.math.ChunkPos;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -71,13 +72,19 @@ public final class ConfigCommand
 
                        var regionMetas = chunkComparator.getRegionFilter((chunkPos)->true);
 
-                        context.getSource().getServer().executeSync(()->{
+                        CompletableFuture.runAsync(()->{
                             AtomicInteger progress = new AtomicInteger(0);
                             int totalRegion = regionMetas.size();
                             Map<ChunkPos, ChunkDiffResult> results = new HashMap<>();
                             for(ChunkComparator.RegionMeta regionMeta : regionMetas){
                                 results.putAll(
-                                        chunkComparator.compareRegion(regionMeta,null).join()
+                                        chunkComparator.compareRegion(regionMeta,
+                                                chunkPos -> {
+
+                                                    return true;
+                                                }
+
+                                        ).join()
                                 );
                                 progress.incrementAndGet();
                                 context.getSource().sendFeedback(
@@ -91,9 +98,9 @@ public final class ConfigCommand
                                     .forEach(
                                             entry -> {
                                                 context.getSource().sendFeedback(()->Text.of(entry.getKey().toString() +": " +entry.getValue().modifiedBlocks()),false);
-                                               if(entry.getValue().blockDiffMap() != null)
+                                                if(entry.getValue().blockDiffMap() != null)
                                                     entry.getValue().blockDiffMap().forEach((blockPair,count)->{
-                                                         res.merge(blockPair,count,Integer::sum);
+                                                        res.merge(blockPair,count,Integer::sum);
                                                     });
                                             }
                                     );

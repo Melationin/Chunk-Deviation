@@ -1,6 +1,8 @@
 package com.zhddsj.chunkdeviation.comparison;
 
 import com.mojang.datafixers.util.Pair;
+import com.zhddsj.chunkdeviation.MirrorWorld;
+import com.zhddsj.chunkdeviation.ProtoWorld;
 import com.zhddsj.chunkdeviation.utils.ROFIO;
 import com.zhddsj.chunkdeviation.utils.ROFTool;
 import net.minecraft.block.Block;
@@ -25,11 +27,11 @@ public class ChunkComparator
 {
 
     ServerWorld world;
-    ServerWorld mirrorWorld;
+    MirrorWorld mirrorWorld;
     ChunkComparatorConfig config;
 
 
-    public ChunkComparator(ServerWorld serverWorld, ServerWorld mirrorWorld, ChunkComparatorConfig config)
+    public ChunkComparator(ServerWorld serverWorld, MirrorWorld mirrorWorld, ChunkComparatorConfig config)
     {
         this.world = serverWorld;
         this.mirrorWorld = mirrorWorld;
@@ -41,33 +43,7 @@ public class ChunkComparator
     {
     }
 
-    public CompletableFuture<Map<ChunkPos, ChunkDiffResult>> compareWorld(Predicate<ChunkPos> predicateChunk, ChunkComparatorResult result)
-    {
-       ArrayList<RegionMeta> regionMetas = getRegionFilter(predicateChunk);
 
-        result.totalRegions = regionMetas.size();
-
-        ArrayList<CompletableFuture<Map<ChunkPos, ChunkDiffResult>>> futures = new ArrayList<>();
-
-        for (RegionMeta regionMeta : regionMetas) {
-            futures.add(compareRegion(regionMeta, predicateChunk));
-        }
-
-        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).thenApply(v ->
-        {
-            Map<ChunkPos, ChunkDiffResult> finalResult = new HashMap<>();
-            for (CompletableFuture<Map<ChunkPos, ChunkDiffResult>> future : futures) {
-                try {
-                    Map<ChunkPos, ChunkDiffResult> regionResult = future.get();
-                    finalResult.putAll(regionResult);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            return finalResult;
-        });
-
-    }
 
     public ArrayList<RegionMeta> getRegionFilter(Predicate<ChunkPos> predicateChunk){
         Path regionPath = ROFTool.getSavePath(world).resolve("region");
@@ -100,6 +76,10 @@ public class ChunkComparator
         // ── 阶段 1：顺序 I/O 读取 + 并行 NBT 解析 + 标记块扫描 ──
         // 整个阶段在调用线程（工作线程）上执行，I/O 不可并行，解析可以并行。
         // 不用外层 supplyAsync 包装，避免 ForkJoinPool worker 被 join() 堵死（线程饥饿死锁）。
+
+        //ServerWorld mirrorWorld = this.mirrorWorld.getMirrorWorld();
+
+        ProtoWorld world1=new ProtoWorld(world);
 
         ConcurrentMap<ChunkPos, SerializedChunk> serializedChunkMap = new ConcurrentHashMap<>();
         ConcurrentMap<ChunkPos, ChunkDiffResult> earlyResults = new ConcurrentHashMap<>();
@@ -145,17 +125,13 @@ public class ChunkComparator
         }
         // 等待所有解析任务完成（此时在工作线程上 join，不占用主线程）
         CompletableFuture.allOf(parseTasks.toArray(new CompletableFuture[0])).join();
-
-        // ── 阶段 2：注册 ticket + 获取区块 future ──
-        // 关键：getChunkFutureSyncOnMainThread 必须从【非主线程】调用，
-        // 它会把 getChunkFuture 提交到 mainThreadExecutor 并返回一个 pending future，
-        // 主线程继续自由 tick 时会推进这些 future 完成。
-        // 绝对不能在主线程任务内部调用并等待结果（会死锁）。
-        //
-        // ticket 注册也需要在主线程执行（ChunkTicketManager 非线程安全），
-        // 但只需 fire-and-forget（execute），不需要等它完成再调 getChunkFutureSyncOnMainThread：
-        // getChunkFutureSyncOnMainThread 非主线程路径本身会把 getChunkFuture 提交到主线程队列，
-        // 该提交会排在 execute(addTicket) 之后，因此 ticket 一定先注册。
+        System.out.println("Region " + regionMeta.x + "," + regionMeta.z + " parsed. " +
+                "Total: " + rawNbtList.size() +
+                ", To Load: " + serializedChunkMap.size() +
+                ", Early Results: " + earlyResults.size());
+        // ── 阶段 2：批量注册 ticket + 获取所有区块 future ──
+        // 关键优化：一次性在主线程批量注册所有 ticket 并获取所有 future，
+        // 避免逐个提交导致主线程队列串行瓶颈。
 
         List<CompletableFuture<Map.Entry<ChunkPos, ChunkDiffResult>>> allFutures = new ArrayList<>();
 
@@ -164,77 +140,101 @@ public class ChunkComparator
             allFutures.add(CompletableFuture.completedFuture(Map.entry(e.getKey(), e.getValue())));
         }
 
-        for (SerializedChunk serializedChunk : serializedChunkMap.values()) {
-            ChunkPos chunkPos = serializedChunk.chunkPos();
+        // 收集所有需要加载的区块
+        List<SerializedChunk> chunksToLoad = new ArrayList<>(serializedChunkMap.values());
 
-            // fire-and-forget：在主线程注册 ticket
-            mirrorWorld.getServer().execute(() ->
-                    mirrorWorld.getChunkManager().addTicket(
-                            new ChunkTicket(ChunkTicketType.FORCED,
-                                    ChunkLevels.getLevelFromType(ChunkLevelType.FULL)),
-                            chunkPos));
+        if (!chunksToLoad.isEmpty()) {
+            // 一次性在主线程批量注册所有 ticket + 获取所有 future
+            // 用一个
+            /*
+            for (SerializedChunk sc : chunksToLoad) {
+                ChunkPos cp = sc.chunkPos();
+                mirrorWorld.getChunkManager().addTicket(ChunkTicketType.FORCED, cp,1);
+            }
+            mirrorWorld.getChunkManager().chunkLoadingManager.updateChunks();
 
-            // 从工作线程调用（非主线程路径）：把 getChunkFuture 提交到 mainThreadExecutor 队列，
-            // 主线程在后续 tick 中会执行它并推进区块加载，不会阻塞主线程。
-            CompletableFuture<Chunk> chunkFuture =
-                    mirrorWorld.getChunkManager()
-                            .getChunkFutureSyncOnMainThread(chunkPos.x, chunkPos.z, ChunkStatus.FULL, true)
-                            .thenApply(opt -> opt.orElse(null));
+            for (SerializedChunk sc : chunksToLoad) {
+                ChunkPos cp = sc.chunkPos();
+                // 直接在主线程调用 getChunkFuture（走主线程路径，立即执行）
+                CompletableFuture<Chunk> cf = mirrorWorld.getChunkManager().getChunkFutureSyncOnMainThread(
+                        cp.x,
+                        cp.z,
+                        ChunkStatus.FULL,
+                        true
 
-            // ── 阶段 3：区块加载完毕后在 ForkJoinPool 中并行计算 diff ──
-            allFutures.add(chunkFuture.thenApplyAsync(chunk ->
-            {
-                if (chunk == null) {
-                    System.err.println("miss chunk " + chunkPos);
-                    mirrorWorld.getServer().execute(() ->
-                            mirrorWorld.getChunkManager().removeTicket(
-                                    ChunkTicketType.FORCED, chunkPos, 1));
-                    return Map.entry(chunkPos, new ChunkDiffResult(0, 0, null));
-                }
+                ).thenApply(chunk ->
+                    chunk.orElse(null));
 
-                int totalBlocks = 0;
-                long modifiedBlocks = 0;
-                int bottomY = mirrorWorld.getBottomY();
-                Map<Pair<Block, Block>, Integer> diffMap = new HashMap<>();
-                BlockPos.Mutable mutable = new BlockPos.Mutable();
+                chunkFutures2.add(cf);
+            }
+            */
+            List<CompletableFuture<Chunk>> chunkFutures2 = new ArrayList<>(chunksToLoad.size());
+            for (SerializedChunk sc : chunksToLoad) {
+                ChunkPos cp = sc.chunkPos();
 
-                int sectionIdx = 0;
-                checkChunkLoop:
-                for (var section : serializedChunk.sectionData()) {
-                    if (section.chunkSection() == null) {
-                        sectionIdx++;
-                        continue;
+                chunkFutures2.add( CompletableFuture.supplyAsync(() ->{
+                    return world1.generate(cp, ChunkStatus.FEATURES);
+
+                }).thenApply(chunk->{
+                    System.out.println("chunk " + cp + " generated");
+                    return chunk;
+                }));
+            }
+            //this.mirrorWorld.mirrorExecutor.
+
+            // ── 阶段 3：所有区块已加载，并行计算 diff ──
+            for (int idx = 0; idx < chunksToLoad.size(); idx++) {
+                SerializedChunk serializedChunk = chunksToLoad.get(idx);
+                CompletableFuture<Chunk> chunkFut = chunkFutures2.get(idx);
+                ChunkPos chunkPos = serializedChunk.chunkPos();
+
+                allFutures.add(chunkFut.thenApplyAsync(chunk -> {
+                    if (chunk == null) {
+                        System.err.println("miss chunk " + chunkPos);
                     }
-                    int sy = sectionIdx * 16 + bottomY;
-                    sectionIdx++;
-                    for (int y = 0; y < 16; y++) {
-                        for (int x = 0; x < 16; x++) {
-                            for (int z = 0; z < 16; z++) {
-                                mutable.set(x + chunkPos.x * 16, y + sy, z + chunkPos.z * 16);
-                                BlockState gen = chunk.getBlockState(mutable);
-                                BlockState act = section.chunkSection().getBlockState(x, y, z);
-                                if (gen.isAir() && act.isAir()) continue;
-                                totalBlocks++;
-                                long diff = config.diffCount(gen.getBlock(), act.getBlock());
-                                if (diff >= 16 * 16 * 16 * 32) {
-                                    break checkChunkLoop;
-                                }
-                                if (diff > 0) {
-                                    modifiedBlocks++;
-                                    diffMap.merge(Pair.of(gen.getBlock(), act.getBlock()), 1, Integer::sum);
+
+                    int totalBlocks = 0;
+                    long modifiedBlocks = 0;
+                    int bottomY = world.getBottomY();
+                    Map<Pair<Block, Block>, Integer> diffMap = new HashMap<>();
+                    BlockPos.Mutable mutable = new BlockPos.Mutable();
+
+                    int sectionIdx = 0;
+                    checkChunkLoop:
+                    for (var section : serializedChunk.sectionData()) {
+                        if (section.chunkSection() == null) {
+                            sectionIdx++;
+                            continue;
+                        }
+                        int sy = sectionIdx * 16 + bottomY;
+                        sectionIdx++;
+                        for (int y = 0; y < 16; y++) {
+                            for (int x = 0; x < 16; x++) {
+                                for (int z = 0; z < 16; z++) {
+                                    mutable.set(x + chunkPos.x * 16, y + sy, z + chunkPos.z * 16);
+                                    BlockState gen = chunk.getBlockState(mutable);
+                                    BlockState act = section.chunkSection().getBlockState(x, y, z);
+                                    if (gen.isAir() && act.isAir()) continue;
+                                    totalBlocks++;
+                                    long diff = config.diffCount(gen.getBlock(), act.getBlock());
+                                    if (diff >= 16 * 16 * 16 * 32) {
+                                        break checkChunkLoop;
+                                    }
+                                    if (diff > 0) {
+                                        modifiedBlocks++;
+                                        diffMap.merge(Pair.of(gen.getBlock(), act.getBlock()), 1, Integer::sum);
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // ticket 释放回主线程执行
-                mirrorWorld.getServer().execute(() ->
-                        mirrorWorld.getChunkManager().removeTicket(
-                                ChunkTicketType.FORCED, chunkPos, 1));
-                return Map.entry(chunkPos, new ChunkDiffResult(totalBlocks, modifiedBlocks, diffMap));
-            }, ForkJoinPool.commonPool()));
+                    return Map.entry(chunkPos, new ChunkDiffResult(totalBlocks, modifiedBlocks, diffMap));
+                }));
+            }
         }
+
+
 
         // ── 阶段 4：汇总所有区块结果 ──
         return CompletableFuture.allOf(allFutures.toArray(new CompletableFuture[0]))
@@ -254,50 +254,6 @@ public class ChunkComparator
     }
 
 
-    public ChunkDiffResult compare(WorldChunk actual)
-    {
-        if (mirrorWorld == null)
-            throw new NullPointerException("The mirror world is null");
-
-
-        ChunkPos pos = actual.getPos();
-        int startX = pos.getStartX();
-        int startZ = pos.getStartZ();
-        int bottomY = mirrorWorld.getBottomY();
-        int topY = mirrorWorld.getTopYInclusive();
-
-        Chunk original = mirrorWorld.getChunk(pos.x, pos.z, ChunkStatus.FULL, true);
-
-        int totalBlocks = 0;
-        long modifiedBlocks = 0;
-        Map<Pair<Block, Block>, Integer> diffMap = new HashMap<>();
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
-
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = bottomY; y < topY; y++) {
-                    mutable.set(startX + x, y, startZ + z);
-
-                    BlockState gen = original.getBlockState(mutable);
-                    BlockState act = actual.getBlockState(mutable);
-
-                    if (gen.isAir() && act.isAir())
-                        continue;
-                    totalBlocks++;
-                    long diff = config.diffCount(gen.getBlock(), act.getBlock());
-                    if (diff >= 16 * 16 * 16 * 32) {
-                        break;
-                    }
-                    if (diff > 0) {
-                        modifiedBlocks++;
-                        diffMap.merge(Pair.of(gen.getBlock(), act.getBlock()), 1, Integer::sum);
-                    }
-                }
-            }
-        }
-
-        return new ChunkDiffResult(totalBlocks, modifiedBlocks, diffMap);
-    }
 
     public static ChunkComparator getFromWorld(ServerWorld serverWorld)
     {
@@ -306,30 +262,17 @@ public class ChunkComparator
             return null;
         }
         if (serverWorld.getRegistryKey() == World.OVERWORLD) {
-            for (ServerWorld serverWorld1 : serverWorld.getServer().getWorlds()) {
-                if (serverWorld1.getRegistryKey().getValue().toString().contains("mirror") && serverWorld1.getRegistryKey().getValue().toString()
-                        .contains("overworld")) {
-                    var config = new ChunkComparatorConfigs.OverWorldConfig();
-                    config.loadFromConfig(serverWorld.getRegistryKey().getValue().toString());
-                    return new ChunkComparator(serverWorld, serverWorld1, config);
-                }
-            }
+            var config = new ChunkComparatorConfigs.NetherConfig();
+            config.loadFromConfig(serverWorld.getRegistryKey().getValue().toString());
+            return new ChunkComparator(serverWorld, null, config);
         } else if (serverWorld.getRegistryKey() == World.END) {
-            for (ServerWorld serverWorld1 : serverWorld.getServer().getWorlds()) {
-                if (serverWorld1.getRegistryKey().getValue().toString().contains("mirror") && serverWorld1.getRegistryKey().getValue().toString().contains("end")) {
-                    var config = new ChunkComparatorConfigs.EndConfig();
-                    config.loadFromConfig(serverWorld.getRegistryKey().getValue().toString());
-                    return new ChunkComparator(serverWorld, serverWorld1, config);
-                }
-            }
+            var config = new ChunkComparatorConfigs.NetherConfig();
+            config.loadFromConfig(serverWorld.getRegistryKey().getValue().toString());
+            return new ChunkComparator(serverWorld, MirrorWorld.createEndMirror(serverWorld.getServer()), config);
         } else if (serverWorld.getRegistryKey() == World.NETHER) {
-            for (ServerWorld serverWorld1 : serverWorld.getServer().getWorlds()) {
-                if (serverWorld1.getRegistryKey().getValue().toString().contains("mirror") && serverWorld1.getRegistryKey().getValue().toString().contains("nether")) {
-                    var config = new ChunkComparatorConfigs.NetherConfig();
-                    config.loadFromConfig(serverWorld.getRegistryKey().getValue().toString());
-                    return new ChunkComparator(serverWorld, serverWorld1, config);
-                }
-            }
+            var config = new ChunkComparatorConfigs.NetherConfig();
+            config.loadFromConfig(serverWorld.getRegistryKey().getValue().toString());
+            return new ChunkComparator(serverWorld, null, config);
         }
 
         return null;

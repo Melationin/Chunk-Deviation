@@ -28,7 +28,7 @@ public class ChunkComparatorConfigs
             addTagMap(BlockTags.LOGS, Blocks.AIR);
             addTagMap(BlockTags.REPLACEABLE, Blocks.AIR);
             addTagMap(BlockTags.FLOWERS, Blocks.AIR);
-            addTagMap(BlockTags.OVERWORLD_CARVER_REPLACEABLES, Blocks.STONE);
+
             addBlockMap(Blocks.CAVE_AIR, Blocks.AIR);
             addBlockMap(Blocks.WATER, Blocks.AIR);
             addTagMap(BlockTags.COAL_ORES, Blocks.STONE);
@@ -72,6 +72,9 @@ public class ChunkComparatorConfigs
             addTagMap(BlockTags.LAPIS_ORES,Blocks.STONE);
             addTagMap(BlockTags.REDSTONE_ORES,Blocks.STONE);
             addTagMap(BlockTags.GOLD_ORES,Blocks.STONE);
+
+            addTagMap(BlockTags.BASE_STONE_OVERWORLD,Blocks.STONE);
+            addBlockMap(Blocks.SNOW, Blocks.AIR);
         }
     }
 
@@ -112,6 +115,8 @@ public class ChunkComparatorConfigs
             addBlockMap(Blocks.FIRE, Blocks.AIR);
             addBlockMap(Blocks.LAVA, Blocks.AIR);
             addBlockMap(Blocks.CAVE_AIR, Blocks.AIR);
+
+
         }
     }
 }
