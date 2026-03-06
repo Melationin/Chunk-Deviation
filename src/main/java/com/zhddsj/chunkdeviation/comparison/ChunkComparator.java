@@ -172,13 +172,11 @@ public class ChunkComparator
             for (SerializedChunk sc : chunksToLoad) {
                 ChunkPos cp = sc.chunkPos();
 
-                chunkFutures2.add( CompletableFuture.supplyAsync(() ->{
+                Chunk chunk = CompletableFuture.supplyAsync(() ->{
                     return world1.generate(cp, ChunkStatus.FEATURES);
-
-                }).thenApply(chunk->{
-                    System.out.println("chunk " + cp + " generated");
-                    return chunk;
-                }));
+                }).join();
+                System.out.println("chunk " + cp + " generated");
+                chunkFutures2.add(CompletableFuture.supplyAsync(()->chunk));
             }
             //this.mirrorWorld.mirrorExecutor.
 

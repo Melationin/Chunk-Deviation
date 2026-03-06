@@ -15,6 +15,7 @@ import net.minecraft.world.gen.chunk.ChunkGenerator;
 import net.minecraft.world.gen.noise.NoiseConfig;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -32,8 +33,8 @@ public class ProtoWorld {
      * 全局 ProtoChunk 缓存。
      * 使用 ConcurrentHashMap：多个线程可能并发调用 generate()。
      */
-    final ConcurrentHashMap<ChunkPos, ProtoChunk> cache = new ConcurrentHashMap<>();
-
+    final ConcurrentHashMap<ChunkPos, SimpleChunkHolder> cache = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<ChunkPos, ProtoChunk> cacheB = new ConcurrentHashMap<>();
     public ProtoWorld(ServerWorld world) {
         this.world = world;
     }
@@ -67,7 +68,12 @@ public class ProtoWorld {
      * synchronized 保证同一个 ProtoWorld 实例不会并发写同一个区块。
      */
     private  void ensureStatus(ChunkPos pos, ChunkStatus targetStatus) {
-        ProtoChunk pc = getOrCreate(pos);
+        ProtoChunk pc = getOrCreate(pos).chunk;
+        BoundedRegionArray<AbstractChunkHolder> holders = BoundedRegionArray.create(
+                pos.x, pos.z, 8,
+                (hx, hz) -> getOrCreate(new ChunkPos(hx, hz))
+        );
+
         if (pc.getStatus().isAtLeast(targetStatus)) return;
 
         for (ChunkStatus status : ChunkStatus.createOrderedList()) {
@@ -88,35 +94,28 @@ public class ProtoWorld {
                     ensureStatus(new ChunkPos(pos.x + dx, pos.z + dz), depStatus);
                 }
             }
-
-            // 构造以 pos 为中心的 BoundedRegionArray，半径 = accumulatedDependencies 的最大范围
-            int radius = step.accumulatedDependencies().getMaxLevel();
-            BoundedRegionArray<AbstractChunkHolder> holders = BoundedRegionArray.create(
-                    pos.x, pos.z, radius,
-                    (hx, hz) -> new SimpleChunkHolder(new ChunkPos(hx, hz), getOrCreate(new ChunkPos(hx, hz)))
-            );
-
-            // 执行本步骤
             runStep(step, pos, pc, holders);
             cache.put(new ChunkPos(pos.x, pos.z), pc);
             if (status == targetStatus) break;
         }
     }
 
-    private void generateChunks(Set<ChunkPos> map, ChunkStatus targetStatus)
+    private void ensureStatus(Set<ChunkPos> map, ChunkStatus targetStatus)
     {
+        Map<ChunkPos, BoundedRegionArray<AbstractChunkHolder>> regions = new HashMap<>();
+
         for (ChunkStatus status : ChunkStatus.createOrderedList()) {
             ChunkGenerationStep step = ChunkGenerationSteps.GENERATION.get(status);
             int depSize = step.directDependencies().size();
-
-
         }
     }
 
-    private ProtoChunk getOrCreate(ChunkPos pos) {
-        return cache.computeIfAbsent(pos, p -> new ProtoChunk(
-                p, UpgradeData.NO_UPGRADE_DATA, world,
-                world.getRegistryManager().getOrThrow(RegistryKeys.BIOME), null));
+    private SimpleChunkHolder getOrCreate(ChunkPos pos) {
+        return cache.computeIfAbsent(pos, p ->
+                new SimpleChunkHolder(pos,new ProtoChunk(
+                        p, UpgradeData.NO_UPGRADE_DATA, world,
+                        world.getRegistryManager().getOrThrow(RegistryKeys.BIOME), null))
+                );
     }
 
     // ────────────────────────────────────────────────
@@ -210,11 +209,21 @@ public class ProtoWorld {
             for (int i = 0; i <= maxIdx; i++) {
                 chunkFuturesByStatus.compareAndSet(i, null, done);
             }
-            this.status = ChunkStatus.FULL; // cannotBeLoaded() 永远返回 false
+            this.status  = ChunkStatus.FULL; // cannotBeLoaded() 永远返回 false
         }
 
         @Override public int getLevel() { return ChunkLevels.getLevelFromType(ChunkLevelType.FULL); }
         @Override public int getCompletedLevel() { return getLevel(); }
         @Override protected void combineSavingFuture(CompletableFuture<?> f) { /* 不保存 */ }
+    }
+    static final class SimpleChunkLoader {
+        SimpleChunkHolder holder;
+
+
+        SimpleChunkLoader(SimpleChunkHolder holder) {
+            this.holder = holder;
+        }
+
+
     }
 }
